@@ -15,6 +15,12 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import { Line, Bar } from "react-chartjs-2";
 import { AiOutlineArrowRight } from "react-icons/ai";
 
+import { ClipLoader } from "react-spinners";
+
+import Dropdown from "@/components/Dropdown";
+
+import { textDateFormat } from "@/components/helper";
+
 import { useFetch } from "@/util/api";
 
 import DepartmentSelect from "../DepartmentSelect";
@@ -63,31 +69,41 @@ function IndividualPerformanceAndCareerReview() {
     labels: [],
     datasets: [],
   });
+  const [period, setPeriod] = useState({
+    value: "",
+    id: "",
+  });
 
-  const [from, setFrom] = useState("");
-  const [end, setEnd] = useState("");
-  const [isDepartmentIds, setDepartmentIds] = useState<
-    { name: string; id: string }[]
-  >([]);
-  const { data, isLoading } = useFetch(
-    "department-wise-tardiness",
-    ["department-wise-tardiness", from, end],
-    `/api/department-wise-tardiness`
+  const [department, setDepartment] = useState({
+    value: "",
+    id: "",
+  });
+
+  const { data: graph, isLoading: graphLoading } = useFetch(
+    "ipcr-graph",
+    ["ipcr-graph", period.id],
+    `/api/ipcr-graph?ipcr_period_id=${period.id}&department_id=${department.id}`
   );
 
-  const departmentWise: departmentWiseType = data?.data?.data;
+  const { data: ipcrSummary, isLoading: ipcrSummaryLoading } = useFetch(
+    "ipcr-summary",
+    ["ipcr-summary", period.id, department.id],
+    `/api/ipcr-summary?ipcr_period_id=${period.id}&department_id=${department.id}`
+  );
+
+  const graphData: { rate: number; count: number }[] = graph?.data?.data?.data;
 
   useEffect(() => {
     setLineChart({
-      labels: [1, 2, 3, 4, 5], // x-axis
+      labels: graphData?.map((item) => item?.rate), // x-axis
       datasets: [
         {
-          data: [5, 20, 90, 15, 45],
+          data: graphData?.map((item) => item?.count),
           backgroundColor: "#9acd32",
         },
       ],
     });
-  }, [departmentWise?.data]);
+  }, [graphData]);
 
   const options = {
     responsive: true,
@@ -110,58 +126,89 @@ function IndividualPerformanceAndCareerReview() {
     <div className=" space-y-5">
       <ul className=" flex justify-between flex-wrap gap-3 items-center">
         <li>
-          <h5 className="inline-block font-bold text-red-2 relative after:content-[''] after:absolute after:w-full after:bottom-0 after:left-0 after:h-[2px] after:bg-yellow-400">
+          <h5 className="inline-block font-bold text-black relative underline-ccgreen">
             Individual Performance and Career Review
           </h5>
         </li>
         <li className=" flex gap-2 flex-wrap items-center">
-          <DepartmentSelect
-            selectedIDs={isDepartmentIds}
-            setSelected={setDepartmentIds}
+          <Dropdown
+            value={period}
+            setValue={setPeriod}
+            endpoint={"/api/options/ipcr_periods"}
+            label={"Period"}
+            displayValueKey={"date_range"}
           />
-          <aside className=" flex items-center flex-wrap gap-2">
-            <input type="date" onChange={(e) => setFrom(e.target.value)} />
-            <AiOutlineArrowRight className=" text-red-2" />
-            <input type="date" onChange={(e) => setEnd(e.target.value)} />
-          </aside>
+          <Dropdown
+            value={department}
+            setValue={setDepartment}
+            endpoint={"/api/options/departments"}
+            label={"Department"}
+            displayValueKey={"name"}
+          />
         </li>
       </ul>
       <ul className=" grid grid-cols-3 gap-5">
-        <li className=" shadow-md 1280px:col-span-3 rounded-md p-5 h-auto">
+        <li className=" shadow-md 1280px:col-span-3 rounded-md bg-white-0 p-5 h-auto">
           <Bar data={LineChart} options={options} plugins={plugins} />
         </li>
-        <li className=" shadow-md 1280px:col-span-3 col-span-2 rounded-md p-5 h-auto">
+        <li className=" shadow-md 1280px:col-span-3 col-span-2 rounded-md bg-white-0 p-5 h-auto">
           <div className="max-h-[400px] relative min-h-[10rem] overflow-auto w-full">
+            {ipcrSummaryLoading && (
+              <>
+                <aside className=" absolute top-0 gap-2 flex-col left-0 h-full w-full flex justify-center items-center bg-[#e6e6e652]">
+                  <ClipLoader color="#9acd32" />
+                  <h4 className=" font-bold animate-pulse">Loading...</h4>
+                </aside>
+              </>
+            )}
             <table className=" w-full font-medium">
               <thead>
                 <tr>
-                  <th className=" text-center text-sm text-red-2">Employee</th>
-                  <th className=" text-center text-sm text-red-2">
+                  <th className=" text-center text-sm text-black">Employee</th>
+                  <th className=" text-center text-sm text-black">
                     Office/College
                   </th>
-                  <th className=" text-center text-sm text-red-2">
+                  <th className=" text-center text-sm text-black">
                     Avg Rating
                   </th>
-                  <th className=" text-center text-sm text-red-2">Overall</th>
-                  <th className=" text-center text-sm text-red-2">
+                  <th className=" text-center text-sm text-black">Overall</th>
+                  <th className=" text-center text-sm text-black">
                     Adjectival
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {/* {topHabitual?.map((item, indx) => (
-              <tr key={indx}>
-                <td>{item?.employee_name}</td>
-                <td>{item?.department_name}</td>
-                <td>{item?.total_tardiness}</td>
-              </tr>
-            ))} */}
+                {ipcrSummary?.data?.data?.map((item: any, indx: number) => (
+                  <tr key={indx}>
+                    <td>{item?.employee?.full_name}</td>
+                    <td>{item?.employee?.email}</td>
+                    <td>{textDateFormat(item?.employee?.date_hired)}</td>
+                    <td className=" text-end">
+                      {(
+                        (Number(item?.mean_score_strategic) +
+                          Number(item?.mean_score_core) +
+                          Number(item?.mean_score_support)) /
+                        3
+                      ).toFixed(2)}
+                    </td>
+                    <td className=" text-end">
+                      {(
+                        (Number(item?.weighted_average_strategic) +
+                          Number(item?.weighted_average_core) +
+                          Number(item?.weighted_average_support)) /
+                        3
+                      ).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
 
-                <tr>
-                  <td colSpan={5}>
-                    <h3 className=" text-center py-5">NO RECORD FOUND</h3>
-                  </td>
-                </tr>
+                {ipcrSummary?.data?.data?.length === 0 && (
+                  <tr>
+                    <td colSpan={5}>
+                      <h3 className=" text-center py-5">NO RECORD FOUND</h3>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
