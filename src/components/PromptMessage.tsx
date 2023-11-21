@@ -10,15 +10,15 @@ import { useGlobalState } from "./Context/AppMangement";
 
 function PromptMessage() {
   const { setNotification, notification } = useGlobalState();
+
   useEffect(() => {
-    const intervalPrompt = setInterval(
-      () => {
-        setNotification(false, notification.type, notification.message);
-      },
-      notification.type === "error" ? 6000 : 3000
-    );
+    const intervalPrompt = setInterval(() => {
+      setNotification(false, notification.type, notification.message);
+    }, notification.type === "error" ? 6000 : 3000);
+
     return () => clearInterval(intervalPrompt);
-  }, [notification.toggle]);
+  }, [notification.toggle, notification.type, notification.message, setNotification]);
+
 
   let arrayNotif: any = [];
   if (
